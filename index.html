@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>M-Pesa Sticker Utility</title>
+  <style>
+    :root {
+      --mpesa-green: #1db954; /* tweak if you want a different green */
+      --bg: #f6f7f9;
+      --card: #fff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+    }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; background: linear-gradient(135deg, #f9fafb, #eef2f7); color: var(--text); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 6px; font-size: 28px; font-weight: 900; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
+    @media (min-width: 992px) { .grid { grid-template-columns: 360px 1fr; } }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); padding: 16px; }
+    .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 8px 0 10px; }
+
+    .row { display: flex; gap: 8px; }
+    .row > .btn { flex: 1; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; font-weight: 700; border-radius: 12px; border: 1px solid var(--border); background: #f3f4f6; cursor: pointer; user-select: none; }
+    .btn.active { background: #111827; color: #fff; }
+    .btn.green.active { background: #059669; color: #fff; }
+
+    label { display: block; font-size: 13px; font-weight: 700; margin: 10px 0 6px; }
+    input[type="text"], input[type="tel"] { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; font-size: 15px; }
+
+    .export { display: flex; gap: 10px; padding-top: 8px; }
+    .export .btn { flex: 1; }
+    .export .btn.png { background: #059669; color: #fff; }
+    .export .btn.pdf { background: #111827; color: #fff; }
+
+    /* Preview / Sticker */
+    .preview-wrap { display: flex; justify-content: center; }
+    .sticker { width: 420px; min-height: 600px; background: #fff; border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 18px 40px rgba(0,0,0,0.08); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+    .sticker-header { background: var(--mpesa-green); color: #fff; text-align: center; padding: 14px 16px; border-radius: 14px; font-weight: 900; font-size: 28px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .sticker-sublabel { text-align: center; color: #374151; font-weight: 800; margin-top: -6px; }
+    .boxes { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .box { width: 52px; height: 62px; background: #fff; border: 3px solid #000; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 24px; letter-spacing: 0.08em; }
+    .box.md { width: 46px; height: 54px; font-size: 20px; }
+    .name { text-align: center; font-weight: 900; font-size: 22px; word-break: break-word; }
+    .watermark { margin-top: auto; text-align: center; color: #9ca3af; font-size: 11px; }
+    .hint { color: #6b7280; font-size: 12px; margin-top: 10px; }
+  </style>
+  <!-- Libraries via CDN (no SRI to avoid mismatch issues) -->
+  <script src="https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>M-Pesa Sticker Utility</h1>
+    <div class="sub">Type your details, see a live sticker, then download as PNG or A6 PDF. Pure HTML/CSS/JS.</div>
+
+    <div class="grid">
+      <!-- Controls -->
+      <div class="card">
+        <div class="section-title">Mode</div>
+        <div class="row">
+          <button id="mode-send" class="btn active">Send Money</button>
+          <button id="mode-lipa" class="btn">Lipa na M-PESA</button>
+        </div>
+
+        <div id="lipa-types" style="display:none; margin-top: 8px;">
+          <div class="row">
+            <button id="type-till" class="btn green active">Till</button>
+            <button id="type-paybill" class="btn green">Paybill</button>
+            <button id="type-pochi" class="btn green">Pochi</button>
+          </div>
+        </div>
+
+        <div id="inputs-send" class="inputs">
+          <label>Phone Number</label>
+          <input id="input-phone" type="tel" placeholder="07XXXXXXXX" />
+          <label>Name</label>
+          <input id="input-name" type="text" placeholder="e.g., Marie Muchiri" />
+        </div>
+
+        <div id="inputs-till" class="inputs" style="display:none;">
+          <label>Till Number</label>
+          <input id="input-till" type="tel" placeholder="e.g., 123456" />
+          <label>Name</label>
+          <input id="input-name-till" type="text" placeholder="Business name" />
+        </div>
+
+        <div id="inputs-paybill" class="inputs" style="display:none;">
+          <label>Paybill Number</label>
+          <input id="input-paybill" type="tel" placeholder="e.g., 247247" />
+          <label>Account Number</label>
+          <input id="input-account" type="text" placeholder="Meter / Student ID / Ref" />
+          <label>Name</label>
+          <input id="input-name-paybill" type="text" placeholder="Business name" />
+        </div>
+
+        <div id="inputs-pochi" class="inputs" style="display:none;">
+          <label>Phone Number (Pochi)</label>
+          <input id="input-pochi" type="tel" placeholder="07XXXXXXXX" />
+          <label>Name</label>
+          <input id="input-name-pochi" type="text" placeholder="e.g., Mama Mboga" />
+        </div>
+
+        <div class="export">
+          <button id="btn-png" class="btn png">Download PNG</button>
+          <button id="btn-pdf" class="btn pdf">Download PDF (A6)</button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="card">
+        <div class="sub">Live preview (what you’ll export):</div>
+        <div class="preview-wrap">
+          <div id="sticker" class="sticker">
+            <div id="sticker-header" class="sticker-header">Send Money</div>
+            <div id="sticker-sublabel" class="sticker-sublabel" style="display:none;"></div>
+
+            <div class="boxes" id="primary-boxes"></div>
+
+            <div id="account-section" style="display:none;">
+              <div class="sticker-sublabel" style="margin-top:6px;">Account Number</div>
+              <div class="boxes" id="account-boxes"></div>
+            </div>
+
+            <div class="name" id="sticker-name"></div>
+            <div class="watermark">Generated with Sticker Utility</div>
+          </div>
+        </div>
+        <div class="hint">Tip: Phone numbers limit to 10 digits. Paybill/Till accept up to 12 digits. Account can include letters/numbers.</div>
+      </div>
+    </div>
+
+    <div class="sub" style="text-align:center; margin-top:16px;">© <span id="year"></span> Sticker Utility — Not affiliated with Safaricom. For personal/merchant use only.</div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const yearEl = el('year'); yearEl.textContent = new Date().getFullYear();
+
+    // State
+    let mode = 'send'; // 'send' | 'lipa'
+    let lipaType = 'till'; // 'till' | 'paybill' | 'pochi'
+
+    let phone = ''; let nameSend = '';
+    let till = ''; let nameTill = '';
+    let paybill = ''; let account = ''; let namePaybill = '';
+    let pochi = ''; let namePochi = '';
+
+    // Elements
+    const btnModeSend = el('mode-send');
+    const btnModeLipa = el('mode-lipa');
+    const lipaTypesWrap = el('lipa-types');
+
+    const btnTypeTill = el('type-till');
+    const btnTypePaybill = el('type-paybill');
+    const btnTypePochi = el('type-pochi');
+
+    const inputsSend = el('inputs-send');
+    const inputsTill = el('inputs-till');
+    const inputsPaybill = el('inputs-paybill');
+    const inputsPochi = el('inputs-pochi');
+
+    const inputPhone = el('input-phone');
+    const inputName = el('input-name');
+
+    const inputTill = el('input-till');
+    const inputNameTill = el('input-name-till');
+
+    const inputPaybill = el('input-paybill');
+    const inputAccount = el('input-account');
+    const inputNamePaybill = el('input-name-paybill');
+
+    const inputPochi = el('input-pochi');
+    const inputNamePochi = el('input-name-pochi');
+
+    const stickerHeader = el('sticker-header');
+    const stickerSub = el('sticker-sublabel');
+    const primaryBoxes = el('primary-boxes');
+    const accountSection = el('account-section');
+    const accountBoxes = el('account-boxes');
+    const stickerName = el('sticker-name');
+
+    const btnPng = el('btn-png');
+    const btnPdf = el('btn-pdf');
+
+    // Helpers
+    function clampDigits(v, max) { return (v || '').replace(/\D+/g, '').slice(0, max); }
+    function renderBoxes(container, value, fixedCount, size) {
+      const digits = (value || '').replace(/\D+/g, '');
+      const count = fixedCount ?? Math.max(1, digits.length || 1);
+      container.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const ch = digits[i] || '';
+        const d = document.createElement('div');
+        d.className = 'box' + (size === 'md' ? ' md' : '');
+        d.textContent = ch;
+        container.appendChild(d);
+      }
+    }
+
+    function updateUI() {
+      const isSend = mode === 'send';
+      const isPochi = lipaType === 'pochi';
+
+      // Mode buttons
+      btnModeSend.classList.toggle('active', isSend);
+      btnModeLipa.classList.toggle('active', !isSend);
+
+      // Show/hide type row
+      lipaTypesWrap.style.display = isSend ? 'none' : 'block';
+
+      // Show correct input group
+      inputsSend.style.display = isSend ? 'block' : 'none';
+      inputsTill.style.display = (!isSend && lipaType === 'till') ? 'block' : 'none';
+      inputsPaybill.style.display = (!isSend && lipaType === 'paybill') ? 'block' : 'none';
+      inputsPochi.style.display = (!isSend && lipaType === 'pochi') ? 'block' : 'none';
+
+      // Lipa type buttons
+      btnTypeTill.classList.toggle('active', lipaType === 'till');
+      btnTypePaybill.classList.toggle('active', lipaType === 'paybill');
+      btnTypePochi.classList.toggle('active', lipaType === 'pochi');
+
+      // Header/sublabel
+      const header = (isSend || isPochi) ? 'Send Money' : 'Lipa na M-PESA';
+      stickerHeader.textContent = header;
+
+      if (!isSend) {
+        stickerSub.style.display = 'block';
+        if (lipaType === 'till') stickerSub.textContent = 'Till Number';
+        if (lipaType === 'paybill') stickerSub.textContent = 'Paybill';
+        if (lipaType === 'pochi') stickerSub.textContent = 'Pochi la Biashara';
+      } else {
+        stickerSub.style.display = 'none';
+      }
+
+      // Primary digits
+      let primary = '';
+      if (isSend || isPochi) primary = isPochi ? pochi : phone;
+      else primary = (lipaType === 'till') ? till : paybill;
+
+      renderBoxes(primaryBoxes, primary, (isSend || isPochi) ? 10 : undefined, 'lg');
+
+      // Account (paybill)
+      if (!isSend && lipaType === 'paybill') {
+        accountSection.style.display = 'block';
+        renderBoxes(accountBoxes, account, undefined, 'md');
+      } else {
+        accountSection.style.display = 'none';
+        accountBoxes.innerHTML = '';
+      }
+
+      // Name
+      const nm = isSend ? nameSend : (lipaType === 'till' ? nameTill : lipaType === 'paybill' ? namePaybill : namePochi);
+      stickerName.textContent = nm || '';
+    }
+
+    // Events — mode
+    btnModeSend.addEventListener('click', () => { mode = 'send'; updateUI(); });
+    btnModeLipa.addEventListener('click', () => { mode = 'lipa'; updateUI(); });
+
+    // Events — lipa types
+    btnTypeTill.addEventListener('click', () => { lipaType = 'till'; updateUI(); });
+    btnTypePaybill.addEventListener('click', () => { lipaType = 'paybill'; updateUI(); });
+    btnTypePochi.addEventListener('click', () => { lipaType = 'pochi'; updateUI(); });
+
+    // Inputs
+    inputPhone.addEventListener('input', (e) => { phone = clampDigits(e.target.value, 10); e.target.value = phone; updateUI(); });
+    inputName.addEventListener('input', (e) => { nameSend = e.target.value; updateUI(); });
+
+    inputTill.addEventListener('input', (e) => { till = clampDigits(e.target.value, 12); e.target.value = till; updateUI(); });
+    inputNameTill.addEventListener('input', (e) => { nameTill = e.target.value; updateUI(); });
+
+    inputPaybill.addEventListener('input', (e) => { paybill = clampDigits(e.target.value, 12); e.target.value = paybill; updateUI(); });
+    inputAccount.addEventListener('input', (e) => { account = e.target.value.slice(0, 20); updateUI(); });
+    inputNamePaybill.addEventListener('input', (e) => { namePaybill = e.target.value; updateUI(); });
+
+    inputPochi.addEventListener('input', (e) => { pochi = clampDigits(e.target.value, 10); e.target.value = pochi; updateUI(); });
+    inputNamePochi.addEventListener('input', (e) => { namePochi = e.target.value; updateUI(); });
+
+    // Export
+    btnPng.addEventListener('click', async () => {
+      const node = document.getElementById('sticker');
+      const dataUrl = await htmlToImage.toPng(node, { pixelRatio: 2, cacheBust: true });
+      const a = document.createElement('a');
+      a.download = makeFilename() + '.png';
+      a.href = dataUrl;
+      a.click();
+    });
+
+    btnPdf.addEventListener('click', async () => {
+      const node = document.getElementById('sticker');
+      const dataUrl = await htmlToImage.toPng(node, { pixelRatio: 2, cacheBust: true });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a6' });
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const ratio = Math.min(pageWidth / imgProps.width, pageHeight / imgProps.height);
+      const w = imgProps.width * ratio;
+      const h = imgProps.height * ratio;
+      const x = (pageWidth - w) / 2;
+      const y = (pageHeight - h) / 2;
+      pdf.addImage(dataUrl, 'PNG', x, y, w, h);
+      pdf.save(makeFilename() + '.pdf');
+    });
+
+    function makeFilename() {
+      const parts = [];
+      parts.push(mode === 'send' ? 'send-money' : `lipa-${lipaType}`);
+      if (mode === 'send' || lipaType === 'pochi') parts.push((mode === 'send') ? phone : pochi);
+      if (lipaType === 'till') parts.push(till);
+      if (lipaType === 'paybill') { parts.push(paybill); parts.push((account || '').replace(/\s+/g, '-')); }
+      const nm = mode === 'send' ? nameSend : (lipaType === 'till' ? nameTill : lipaType === 'paybill' ? namePaybill : namePochi);
+      if (nm) parts.push(nm.replace(/\s+/g, '-').toLowerCase());
+      return 'mpesa-sticker-' + parts.filter(Boolean).join('-');
+    }
+
+    // Initial render
+    updateUI();
+  </script>
+</body>
+</html>
